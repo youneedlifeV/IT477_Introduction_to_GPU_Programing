@@ -157,6 +157,16 @@ int main()
     char nameppm[] = "JX0.ppm";
     char namepgm[] = "JX0.pgm";
     long long len;
+        long long lenb, mx, mn;
+        mx = pow(2,10);
+        mn = pow(2,0);
+        lenb = mn;
+    double getTime[11][12];
+    getTime[0][0]=0;
+    double serialTime[10]= {5.149000,16.115000,30.782000,47.805000,73.401000,106.795000,143.251000,189.356000,242.370000,302.917000};
+    int ii=0;
+    for(; lenb<=mx; lenb*=2) {
+        
     for (int i = 0; i <= 9;i++) {
         unsigned char *R,*G,*B,*GRAY,*dR,*dG,*dB,*dGRAY;
         char str[10];
@@ -189,7 +199,7 @@ int main()
         cudaMemcpy(dR,R,len*sizeof(unsigned char),cudaMemcpyHostToDevice);
         cudaMemcpy(dG,G,len*sizeof(unsigned char),cudaMemcpyHostToDevice);
         cudaMemcpy(dB,B,len*sizeof(unsigned char),cudaMemcpyHostToDevice);
-        int blockSize = 512;
+        int blockSize = lenb;
         int numBlocks = (len + blockSize -1) / blockSize;
         cudaEvent_t start,stop;
         cudaEventCreate(&start);
@@ -202,7 +212,11 @@ int main()
         cudaEventSynchronize(stop);
         float tot_time=0;
         cudaEventElapsedTime(&tot_time,start,stop);
-        printf("%d\t%f\n",i,tot_time);
+        getTime[i+1][0] = i;
+        getTime[0][ii+1] = lenb; 
+        //getTime[i+1][ii+1] = tot_time; //FOR PARALLEL TIME GRAPH
+        getTime[i+1][ii+1] = (serialTime[i]/tot_time);  //FOR SPEEDUP GRAPH
+        
         cudaMemcpy(GRAY,dGRAY,len*sizeof(unsigned char),cudaMemcpyDeviceToHost);
         for(int j=0; j<len; j++) {
             gry->data[j].gray = GRAY[j];
@@ -220,6 +234,24 @@ int main()
         free(img);
         free(gry->data);
         free(gry);
+
+    }
+ii++;
+}
+    for(int i=0; i<11; i++) {
+        for(int j=0;j<12;j++) {
+            if( i==0 && j==11 ){
+                printf("%d", (int)getTime[i][j]);
+            }
+            else if( j==11 ){
+                printf("%f", getTime[i][j]);
+            }
+            else if( i==0 || j==0 ){
+                printf("%d,", (int)getTime[i][j]);
+            }
+            else printf("%f,", getTime[i][j]);
+        }
+        printf("\n");
     }
     return 0;
 }
