@@ -182,7 +182,6 @@ int main()
     char nameppm[] = "JX0.ppm";
     char namepgm[] = "JX0.pgm";
     double serialTime[10];
-    double ttt;
     printf("Serial Computation Time: \n");
     printf("I\tTime\n");
     for (int i = 0; i <= 9;i++)
