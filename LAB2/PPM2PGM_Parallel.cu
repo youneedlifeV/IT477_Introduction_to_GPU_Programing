@@ -144,6 +144,31 @@ void writePGM(const char *filename, PGMImage *gry)
     fclose(fp);
 }
 
+static PGMImage *changeColorPPM(PPMImage *img, double* ttt)
+{
+    PGMImage *gry;
+    int i, grayValue;
+    double graymapval;
+    if (img)
+    {
+        gry = (PGMImage *)malloc(sizeof(PGMImage));
+        gry->x = img->x;
+        gry->y = img->y;
+        gry->data = (PGMPixel *)malloc(gry->x * gry->y * sizeof(PGMPixel));
+        clock_t start = clock();
+        
+        for (i = 0; i < img->x * img->y; i++)
+        {
+            graymapval = 0.3 * (img->data[i].red) + 0.59 * (img->data[i].green) + 0.11 * (img->data[i].blue);
+            grayValue = (unsigned char)(((unsigned int)graymapval) % (RGB_COMPONENT_COLOR + 1));
+            gry->data[i].gray = grayValue;
+        }
+        clock_t end = clock();
+        *ttt = (((double)(end - start))/CLOCKS_PER_SEC)*1000;
+    }
+    return gry;
+}
+
 __global__ void toGRAY(unsigned char* R, unsigned char* G, unsigned char* B, unsigned char* GRAY, long long n){
         int tid = blockIdx.x*blockDim.x + threadIdx.x;
         if(tid<n) {
@@ -156,6 +181,29 @@ int main()
 {       
     char nameppm[] = "JX0.ppm";
     char namepgm[] = "JX0.pgm";
+    double serialTime[10];
+    double ttt;
+    printf("Serial Computation Time: \n");
+    printf("I\tTime\n");
+    for (int i = 0; i <= 9;i++)
+{
+    char str[10];
+    sprintf(str, "%d", i);
+    nameppm[1] = i + '0';
+    namepgm[1] = i + '0';
+    PPMImage *image;
+    PGMImage *grayImage;
+    image = readPPM(nameppm);
+    double ttt;
+    grayImage = changeColorPPM(image,&ttt);
+    printf("%d\t%f\n",i,ttt);
+    serialTime[i] = ttt;
+    writePGM(namepgm, grayImage);
+    free(image->data);
+    free(image);
+    free(grayImage->data);
+    free(grayImage);
+}
     long long len;
         long long lenb, mx, mn;
         mx = pow(2,10);
@@ -163,7 +211,6 @@ int main()
         lenb = mn;
     double getTime[11][12];
     getTime[0][0]=0;
-    double serialTime[10]= {5.149000,16.115000,30.782000,47.805000,73.401000,106.795000,143.251000,189.356000,242.370000,302.917000};
     int ii=0;
     for(; lenb<=mx; lenb*=2) {
         
@@ -214,8 +261,8 @@ int main()
         cudaEventElapsedTime(&tot_time,start,stop);
         getTime[i+1][0] = i;
         getTime[0][ii+1] = lenb; 
-        //getTime[i+1][ii+1] = tot_time; //FOR PARALLEL TIME GRAPH
-        getTime[i+1][ii+1] = (serialTime[i]/tot_time);  //FOR SPEEDUP GRAPH
+        getTime[i+1][ii+1] = tot_time; //FOR PARALLEL TIME GRAPH
+        //getTime[i+1][ii+1] = (serialTime[i]/tot_time);  //FOR SPEEDUP GRAPH
         
         cudaMemcpy(GRAY,dGRAY,len*sizeof(unsigned char),cudaMemcpyDeviceToHost);
         for(int j=0; j<len; j++) {
@@ -238,18 +285,29 @@ int main()
     }
 ii++;
 }
+    printf("Parallel Computation Time: \n");
     for(int i=0; i<11; i++) {
         for(int j=0;j<12;j++) {
-            if( i==0 && j==11 ){
-                printf("%d", (int)getTime[i][j]);
+            if( j==0 ){
+                printf("%.0f", getTime[i][j]);
             }
-            else if( j==11 ){
-                printf("%f", getTime[i][j]);
+            else if( i==0 ){
+                printf(",%.0f", getTime[i][j]);
             }
-            else if( i==0 || j==0 ){
-                printf("%d,", (int)getTime[i][j]);
+            else printf(",%f", getTime[i][j]);
+        }
+        printf("\n");
+    }
+    printf("Speed Up: \n");
+    for(int i=0; i<11; i++) {
+        for(int j=0;j<12;j++) {
+            if( j==0 ){
+                printf("%.0f", getTime[i][j]);
             }
-            else printf("%f,", getTime[i][j]);
+            else if( i==0 ){
+                printf(",%.0f", getTime[i][j]);
+            }
+            else printf(",%f", (serialTime[i-1]/(double)getTime[i][j]));
         }
         printf("\n");
     }
