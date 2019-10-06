@@ -126,11 +126,11 @@ void writePGM(const char *filename, PGMImage *gry)
         fprintf(stderr, "Unable to open file '%s'\n", filename);
         exit(1);
     }
-    
+
     //write the header file
     //image format
     fprintf(fp, "P5\n");
-    
+
     //comments
     fprintf(fp, "# Created by %s\n", CREATOR);
     //image size
@@ -155,7 +155,7 @@ static PGMImage *changeColorPPM(PPMImage *img)
         gry->y = img->y;
         gry->data = (PGMPixel *)malloc(gry->x * gry->y * sizeof(PGMPixel));
         clock_t start = clock();
-        
+
         for (i = 0; i < img->x * img->y; i++)
         {
             graymapval = 0.3 * (img->data[i].red) + 0.59 * (img->data[i].green) + 0.11 * (img->data[i].blue);
@@ -163,32 +163,32 @@ static PGMImage *changeColorPPM(PPMImage *img)
             gry->data[i].gray = grayValue;
         }
         clock_t end = clock();
-        double total_time_taken = ((double)(end - start))/CLOCKS_PER_SEC;
-        printf("%f\n", total_time_taken*1000);
+        double total_time_taken = ((double)(end - start)) / CLOCKS_PER_SEC;
+        printf("%f\n", total_time_taken * 1000);
     }
     return gry;
 }
 
 int main()
 {
-char nameppm[] = "JX0.ppm";
-char namepgm[] = "JX0.pgm";
-for (int i = 0; i <= 9;i++)
-{
-    char str[10];
-    sprintf(str, "%d", i);
-    nameppm[1] = i + '0';
-    namepgm[1] = i + '0';
-    PPMImage *image;
-    PGMImage *grayImage;
-    image = readPPM(nameppm);
-    printf("%d\t",i);
-    grayImage = changeColorPPM(image);
-    writePGM(namepgm, grayImage);
-    free(image->data);
-    free(image);
-    free(grayImage->data);
-    free(grayImage);
-}
-return 0;
+    char nameppm[] = "JX0.ppm";
+    char namepgm[] = "JX0.pgm";
+    for (int i = 0; i <= 9; i++)
+    {
+        char str[10];
+        sprintf(str, "%d", i);
+        nameppm[1] = i + '0';
+        namepgm[1] = i + '0';
+        PPMImage *image;
+        PGMImage *grayImage;
+        image = readPPM(nameppm);
+        printf("%d\t", i);
+        grayImage = changeColorPPM(image);
+        writePGM(namepgm, grayImage);
+        free(image->data);
+        free(image);
+        free(grayImage->data);
+        free(grayImage);
+    }
+    return 0;
 }

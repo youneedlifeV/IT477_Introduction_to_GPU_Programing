@@ -127,11 +127,11 @@ void writePGM(const char *filename, PGMImage *gry)
         fprintf(stderr, "Unable to open file '%s'\n", filename);
         exit(1);
     }
-    
+
     //write the header file
     //image format
     fprintf(fp, "P5\n");
-    
+
     //comments
     fprintf(fp, "# Created by %s\n", CREATOR);
     //image size
@@ -144,7 +144,7 @@ void writePGM(const char *filename, PGMImage *gry)
     fclose(fp);
 }
 
-static PGMImage *changeColorPPM(PPMImage *img, double* ttt)
+static PGMImage *changeColorPPM(PPMImage *img, double *ttt)
 {
     PGMImage *gry;
     int i, grayValue;
@@ -156,7 +156,7 @@ static PGMImage *changeColorPPM(PPMImage *img, double* ttt)
         gry->y = img->y;
         gry->data = (PGMPixel *)malloc(gry->x * gry->y * sizeof(PGMPixel));
         clock_t start = clock();
-        
+
         for (i = 0; i < img->x * img->y; i++)
         {
             graymapval = 0.3 * (img->data[i].red) + 0.59 * (img->data[i].green) + 0.11 * (img->data[i].blue);
@@ -164,149 +164,163 @@ static PGMImage *changeColorPPM(PPMImage *img, double* ttt)
             gry->data[i].gray = grayValue;
         }
         clock_t end = clock();
-        *ttt = (((double)(end - start))/CLOCKS_PER_SEC)*1000;
+        *ttt = (((double)(end - start)) / CLOCKS_PER_SEC) * 1000;
     }
     return gry;
 }
 
-__global__ void toGRAY(unsigned char* R, unsigned char* G, unsigned char* B, unsigned char* GRAY, long long n){
-        int tid = blockIdx.x*blockDim.x + threadIdx.x;
-        if(tid<n) {
-                GRAY[tid] = (unsigned char)(((unsigned int)(0.3 * (R[tid]) + 0.59 * (G[tid]) + 0.11 * (B[tid]))) % (256));
-            
-        }
+__global__ void toGRAY(unsigned char *R, unsigned char *G, unsigned char *B, unsigned char *GRAY, long long n)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < n)
+    {
+        GRAY[tid] = (unsigned char)(((unsigned int)(0.3 * (R[tid]) + 0.59 * (G[tid]) + 0.11 * (B[tid]))) % (256));
+    }
 }
 
 int main()
-{       
+{
     char nameppm[] = "JX0.ppm";
     char namepgm[] = "JX0.pgm";
     double serialTime[10];
     printf("Serial Computation Time: \n");
     printf("I\tTime\n");
-    for (int i = 0; i <= 9;i++)
-{
-    char str[10];
-    sprintf(str, "%d", i);
-    nameppm[1] = i + '0';
-    namepgm[1] = i + '0';
-    PPMImage *image;
-    PGMImage *grayImage;
-    image = readPPM(nameppm);
-    double ttt;
-    grayImage = changeColorPPM(image,&ttt);
-    printf("%d\t%f\n",i,ttt);
-    serialTime[i] = ttt;
-    writePGM(namepgm, grayImage);
-    free(image->data);
-    free(image);
-    free(grayImage->data);
-    free(grayImage);
-}
-    long long len;
-        long long lenb, mx, mn;
-        mx = pow(2,10);
-        mn = pow(2,0);
-        lenb = mn;
-    double getTime[11][12];
-    getTime[0][0]=0;
-    int ii=0;
-    for(; lenb<=mx; lenb*=2) {
-        
-    for (int i = 0; i <= 9;i++) {
-        unsigned char *R,*G,*B,*GRAY,*dR,*dG,*dB,*dGRAY;
+    for (int i = 0; i <= 9; i++)
+    {
         char str[10];
         sprintf(str, "%d", i);
         nameppm[1] = i + '0';
         namepgm[1] = i + '0';
-        PPMImage *img;
-        PGMImage *gry;
-
-        img = readPPM(nameppm);
-        len = (img->x * img->y);
-        gry = (PGMImage *)malloc(sizeof(PGMImage));
-        gry->x = img->x;
-        gry->y = img->y;
-        gry->data = (PGMPixel *)malloc(gry->x * gry->y * sizeof(PGMPixel));
-
-        R = (unsigned char*)malloc(len*sizeof(unsigned char));
-        G = (unsigned char*)malloc(len*sizeof(unsigned char));
-        B = (unsigned char*)malloc(len*sizeof(unsigned char));
-        GRAY = (unsigned char*)malloc(len*sizeof(unsigned char));
-        cudaMalloc((void**)&dR,len*sizeof(unsigned char));
-        cudaMalloc((void**)&dG,len*sizeof(unsigned char));
-        cudaMalloc((void**)&dB,len*sizeof(unsigned char));
-        cudaMalloc((void**)&dGRAY,len*sizeof(unsigned char));
-        for(int j=0; j<len; j++) {
-            R[j] = img->data[j].red;
-            G[j] = img->data[j].green;
-            B[j] = img->data[j].blue;
-        }
-        cudaMemcpy(dR,R,len*sizeof(unsigned char),cudaMemcpyHostToDevice);
-        cudaMemcpy(dG,G,len*sizeof(unsigned char),cudaMemcpyHostToDevice);
-        cudaMemcpy(dB,B,len*sizeof(unsigned char),cudaMemcpyHostToDevice);
-        int blockSize = lenb;
-        int numBlocks = (len + blockSize -1) / blockSize;
-        cudaEvent_t start,stop;
-        cudaEventCreate(&start);
-        cudaEventCreate(&stop);
-        cudaEventRecord(start);
-
-        toGRAY<<<numBlocks, blockSize>>>(dR,dG,dB,dGRAY,len);
-
-        cudaEventRecord(stop);
-        cudaEventSynchronize(stop);
-        float tot_time=0;
-        cudaEventElapsedTime(&tot_time,start,stop);
-        getTime[i+1][0] = i;
-        getTime[0][ii+1] = lenb; 
-        getTime[i+1][ii+1] = tot_time; //FOR PARALLEL TIME GRAPH
-        //getTime[i+1][ii+1] = (serialTime[i]/tot_time);  //FOR SPEEDUP GRAPH
-        
-        cudaMemcpy(GRAY,dGRAY,len*sizeof(unsigned char),cudaMemcpyDeviceToHost);
-        for(int j=0; j<len; j++) {
-            gry->data[j].gray = GRAY[j];
-        }
-        writePGM(namepgm, gry);
-        free(R);
-        free(G);
-        free(B);
-        free(GRAY);
-        cudaFree(dR);
-        cudaFree(dG);
-        cudaFree(dB);
-        cudaFree(dGRAY);
-        free(img->data);
-        free(img);
-        free(gry->data);
-        free(gry);
-
+        PPMImage *image;
+        PGMImage *grayImage;
+        image = readPPM(nameppm);
+        double ttt;
+        grayImage = changeColorPPM(image, &ttt);
+        printf("%d\t%f\n", i, ttt);
+        serialTime[i] = ttt;
+        writePGM(namepgm, grayImage);
+        free(image->data);
+        free(image);
+        free(grayImage->data);
+        free(grayImage);
     }
-ii++;
-}
+    long long len;
+    long long lenb, mx, mn;
+    mx = pow(2, 10);
+    mn = pow(2, 0);
+    lenb = mn;
+    double getTime[11][12];
+    getTime[0][0] = 0;
+    int ii = 0;
+    for (; lenb <= mx; lenb *= 2)
+    {
+
+        for (int i = 0; i <= 9; i++)
+        {
+            unsigned char *R, *G, *B, *GRAY, *dR, *dG, *dB, *dGRAY;
+            char str[10];
+            sprintf(str, "%d", i);
+            nameppm[1] = i + '0';
+            namepgm[1] = i + '0';
+            PPMImage *img;
+            PGMImage *gry;
+
+            img = readPPM(nameppm);
+            len = (img->x * img->y);
+            gry = (PGMImage *)malloc(sizeof(PGMImage));
+            gry->x = img->x;
+            gry->y = img->y;
+            gry->data = (PGMPixel *)malloc(gry->x * gry->y * sizeof(PGMPixel));
+
+            R = (unsigned char *)malloc(len * sizeof(unsigned char));
+            G = (unsigned char *)malloc(len * sizeof(unsigned char));
+            B = (unsigned char *)malloc(len * sizeof(unsigned char));
+            GRAY = (unsigned char *)malloc(len * sizeof(unsigned char));
+            cudaMalloc((void **)&dR, len * sizeof(unsigned char));
+            cudaMalloc((void **)&dG, len * sizeof(unsigned char));
+            cudaMalloc((void **)&dB, len * sizeof(unsigned char));
+            cudaMalloc((void **)&dGRAY, len * sizeof(unsigned char));
+            for (int j = 0; j < len; j++)
+            {
+                R[j] = img->data[j].red;
+                G[j] = img->data[j].green;
+                B[j] = img->data[j].blue;
+            }
+            cudaMemcpy(dR, R, len * sizeof(unsigned char), cudaMemcpyHostToDevice);
+            cudaMemcpy(dG, G, len * sizeof(unsigned char), cudaMemcpyHostToDevice);
+            cudaMemcpy(dB, B, len * sizeof(unsigned char), cudaMemcpyHostToDevice);
+            int blockSize = lenb;
+            int numBlocks = (len + blockSize - 1) / blockSize;
+            cudaEvent_t start, stop;
+            cudaEventCreate(&start);
+            cudaEventCreate(&stop);
+            cudaEventRecord(start);
+
+            toGRAY<<<numBlocks, blockSize>>>(dR, dG, dB, dGRAY, len);
+
+            cudaEventRecord(stop);
+            cudaEventSynchronize(stop);
+            float tot_time = 0;
+            cudaEventElapsedTime(&tot_time, start, stop);
+            getTime[i + 1][0] = i;
+            getTime[0][ii + 1] = lenb;
+            getTime[i + 1][ii + 1] = tot_time; //FOR PARALLEL TIME GRAPH
+            //getTime[i+1][ii+1] = (serialTime[i]/tot_time);  //FOR SPEEDUP GRAPH
+
+            cudaMemcpy(GRAY, dGRAY, len * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+            for (int j = 0; j < len; j++)
+            {
+                gry->data[j].gray = GRAY[j];
+            }
+            writePGM(namepgm, gry);
+            free(R);
+            free(G);
+            free(B);
+            free(GRAY);
+            cudaFree(dR);
+            cudaFree(dG);
+            cudaFree(dB);
+            cudaFree(dGRAY);
+            free(img->data);
+            free(img);
+            free(gry->data);
+            free(gry);
+        }
+        ii++;
+    }
     printf("Parallel Computation Time: \n");
-    for(int i=0; i<11; i++) {
-        for(int j=0;j<12;j++) {
-            if( j==0 ){
+    for (int i = 0; i < 11; i++)
+    {
+        for (int j = 0; j < 12; j++)
+        {
+            if (j == 0)
+            {
                 printf("%.0f", getTime[i][j]);
             }
-            else if( i==0 ){
+            else if (i == 0)
+            {
                 printf(",%.0f", getTime[i][j]);
             }
-            else printf(",%f", getTime[i][j]);
+            else
+                printf(",%f", getTime[i][j]);
         }
         printf("\n");
     }
     printf("Speed Up: \n");
-    for(int i=0; i<11; i++) {
-        for(int j=0;j<12;j++) {
-            if( j==0 ){
+    for (int i = 0; i < 11; i++)
+    {
+        for (int j = 0; j < 12; j++)
+        {
+            if (j == 0)
+            {
                 printf("%.0f", getTime[i][j]);
             }
-            else if( i==0 ){
+            else if (i == 0)
+            {
                 printf(",%.0f", getTime[i][j]);
             }
-            else printf(",%f", (serialTime[i-1]/(double)getTime[i][j]));
+            else
+                printf(",%f", (serialTime[i - 1] / (double)getTime[i][j]));
         }
         printf("\n");
     }
